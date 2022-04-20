@@ -11,6 +11,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.example.dicegamekotlin.databinding.ActivityMainBinding
+import kotlinx.coroutines.*
 import java.util.*
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadLocalRandom
@@ -21,19 +22,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val diceImages: MutableList<ImageView> = ArrayList()
     private lateinit var diceResIds: IntArray
-    var rotateHandler = object : Handler(Looper.getMainLooper()) {
-        override fun handleMessage(msg: Message) {
-            if (msg.what == ROTATE_START) {
-                refreshRotateButtonToRotating()
-            }
-            if (msg.what == ROTATE_IN_PROGRESS) {
-                refreshDice(msg.obj as ImageView, msg.arg1)
-            }
-            if (msg.what == ROTATE_END) {
-                refreshRotateButtonToRotate()
-            }
-        }
+
+    companion object {
+        const val MAX_CYCLE = 70
+        const val MIN_CYCLE = 50
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -96,59 +90,45 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
     }
 
-    @Throws(InterruptedException::class)
     fun doRotate(view: View?) {
-        val childThread: Thread = object : Thread() {
-            override fun run() {
-                // BEGIN
-                Message().also {
-                    it.what = ROTATE_START
-                    rotateHandler.sendMessage(it)
-                }
 
-                // ROTATING
-                val numberDice = diceImages.size
-                Executors.newFixedThreadPool(numberDice).also {
-                    for (dice in diceImages) {
-                        it.submit { doRotate(dice) }
-                    }
-                    it.shutdown()
-                    try {
-                        it.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)
-                    } catch (e: InterruptedException) {
-                        e.printStackTrace()
-                    }
-                }
-
-                // END
-                Message().also {
-                    it.what = ROTATE_END
-                    rotateHandler.sendMessage(it)
+        // BEGIN
+        CoroutineScope(Dispatchers.Main).launch {
+            refreshRotateButtonToRotating()
+            Log.d("App", "End Begin")
+        }
+        // ROTATING
+        val numberDice = diceImages.size
+        Log.d("App", "Begin ${numberDice}")
+        runBlocking {
+            withContext(Dispatchers.Default){
+                for (dice in diceImages) {
+                    launch { doRotate(dice) }
                 }
             }
         }
-        childThread.start()
+        Log.d("App", "End ${numberDice}")
+
+        // END
+        CoroutineScope(Dispatchers.Main).launch {
+            Log.d("App", "Begin Terminate")
+            refreshRotateButtonToRotate()
+        }
+
     }
 
-    private fun doRotate(dice: ImageView) {
+    private suspend fun doRotate(dice: ImageView) {
         val numberCycle = ThreadLocalRandom.current().nextInt(MAX_CYCLE - MIN_CYCLE + 1) + MIN_CYCLE
         val random = Random(System.currentTimeMillis())
         var i = 1
         while (i < numberCycle) {
             val resultResId = random.nextInt(6)
-            try {
-                Thread.sleep((10 * i).toLong())
-            } catch (e: InterruptedException) {
-                e.printStackTrace()
-            }
-            Message().also {
-                it.what = ROTATE_IN_PROGRESS
-                it.obj = dice
-                it.arg1 = resultResId
-                rotateHandler.sendMessage(it)
-            }
+            delay((10 * i).toLong())
+            refreshDice(dice, resultResId)
             i++
         }
+
+        Log.d("App", "${dice.id} finished")
     }
 
     private fun refreshRotateButtonToRotating() {
@@ -166,12 +146,4 @@ class MainActivity : AppCompatActivity() {
         dice.tag = diceResIds[resultResId]
     }
 
-    companion object {
-        const val MAX_CYCLE = 30
-        const val MIN_CYCLE = 10
-        private const val ROTATE_START = 1
-        private const val ROTATE_IN_PROGRESS = 2
-        private const val ROTATE_END = 3
-        const val SEPARATOR = "_"
-    }
 }
