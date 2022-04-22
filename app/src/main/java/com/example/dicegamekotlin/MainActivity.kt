@@ -95,13 +95,15 @@ class MainActivity : AppCompatActivity() {
         val numberDice = diceImages.size
         Log.d("App", "Begin ${numberDice}")
         var jobs = mutableListOf<Job>()
-        var sum = 0
+        var values = IntArray(numberDice)
         CoroutineScope(Dispatchers.Main).launch {
 //        runBlocking {
 //          withContext (Dispatchers.Main){
             diceImages.map {
-                launch { doRotate(it) }
+                launch { values[diceImages.indexOf(it)] = doRotate(it) }
             }.joinAll()
+            Log.d("App", "Sum ${values.sum()}")
+
 //            }
 //        }
 
@@ -115,19 +117,21 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    private suspend fun doRotate(dice: ImageView) {
+    private suspend fun doRotate(dice: ImageView) : Int {
         val numberCycle = ThreadLocalRandom.current().nextInt(MAX_CYCLE - MIN_CYCLE + 1) + MIN_CYCLE
 //        val numberCycle = MAX_CYCLE
         val random = Random(System.currentTimeMillis())
         var i = 1
+        var resultResId : Int = 0
         while (i < numberCycle) {
-            val resultResId = random.nextInt(6)
+            resultResId = random.nextInt(6)
             delay((10 * i).toLong())
             refreshDice(dice, resultResId)
             i++
         }
 
         Log.d("App", "${dice.id} finished")
+        return resultResId;
     }
 
     private fun refreshRotateButtonToRotating() {
