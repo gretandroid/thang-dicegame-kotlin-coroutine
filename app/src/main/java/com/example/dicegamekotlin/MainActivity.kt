@@ -1,21 +1,15 @@
 package com.example.dicegamekotlin
 
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.Message
 import android.util.Log
 import android.view.View
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.example.dicegamekotlin.databinding.ActivityMainBinding
 import kotlinx.coroutines.*
 import java.util.*
-import java.util.concurrent.Executors
 import java.util.concurrent.ThreadLocalRandom
-import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 
 class MainActivity : AppCompatActivity() {
@@ -100,25 +94,30 @@ class MainActivity : AppCompatActivity() {
         // ROTATING
         val numberDice = diceImages.size
         Log.d("App", "Begin ${numberDice}")
-        runBlocking {
-            withContext(Dispatchers.Default){
-                for (dice in diceImages) {
-                    launch { doRotate(dice) }
-                }
-            }
-        }
-        Log.d("App", "End ${numberDice}")
-
-        // END
+        var jobs = mutableListOf<Job>()
+        var sum = 0
         CoroutineScope(Dispatchers.Main).launch {
-            Log.d("App", "Begin Terminate")
-            refreshRotateButtonToRotate()
+//        runBlocking {
+//          withContext (Dispatchers.Main){
+            diceImages.map {
+                launch { doRotate(it) }
+            }.joinAll()
+//            }
+//        }
+
+            Log.d("App", "End ${numberDice}")
+            // END
+//            CoroutineScope(Dispatchers.Main).launch {
+                Log.d("App", "Begin Terminate")
+                refreshRotateButtonToRotate()
+//            }
         }
 
     }
 
     private suspend fun doRotate(dice: ImageView) {
         val numberCycle = ThreadLocalRandom.current().nextInt(MAX_CYCLE - MIN_CYCLE + 1) + MIN_CYCLE
+//        val numberCycle = MAX_CYCLE
         val random = Random(System.currentTimeMillis())
         var i = 1
         while (i < numberCycle) {
